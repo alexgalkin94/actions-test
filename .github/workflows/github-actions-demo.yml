@@ -1,72 +1,44 @@
-name: GitHub Actions Demo
-run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+name: Fun API Workflow Trigger
+
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to run tests against'
-        type: choice
-        options:
-          - development
-          - staging
-          - production
-        default: 'development'
-        required: true
-      debug_enabled:
-        description: 'Run the build with tmate debugging enabled'
-        type: boolean
-        default: false
-        required: false
 
 jobs:
-  Explore-GitHub-Actions:
+  test-api:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
         with:
-          node-version: '18'
-
-      - name: Print event information
-        run: |
-          echo "🎉 The job was triggered by a ${{ github.event_name }} event."
-          echo "🐧 This job is running on a ${{ runner.os }} server hosted by GitHub!"
-          echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
-          echo "👀 The selected environment is ${{ github.event.inputs.environment || 'not specified (using default)' }}"
-
-      - name: List files in the repository
-        run: ls ${{ github.workspace }}
+          node-version: '16'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install axios
 
-      - name: Run tests
-        run: npm test
-
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ inputs.debug_enabled == 'true' }}
-
-      - name: Build project
-        run: npm run build
-
-      - name: Deploy to selected environment
+      - name: Trigger API and validate response
+        env:
+          API_URL: ${{ secrets.API_URL }}
         run: |
-          echo "Deploying to ${{ github.event.inputs.environment || 'development' }} environment"
-          # Add your deployment script here
+          node -e "
+const axios = require('axios');
+const apiUrl = process.env.API_URL;
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: dist-files
-          path: dist
-
-      - name: Job status
-        run: echo "🍏 This job's status is ${{ job.status }}."
+axios.get(apiUrl)
+  .then(response => {
+    if (response.status === 200) {
+      console.log('🎉 Success! API responded with status code 200');
+      console.log('Response:', response.data);
+    } else {
+      console.log('💥 Oops! API responded with status code', response.status);
+      throw new Error('API response not 200');
+    }
+  })
+  .catch(error => {
+    console.error('💥 Oops! An error occurred:', error.message);
+    process.exit(1);
+  });
+"
